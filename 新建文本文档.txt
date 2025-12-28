@@ -1,0 +1,15 @@
+[Binder 线程 / IPC]                 [系统 VSync]                  [Main 线程]
+       |                                 |                             |
+1. 接收 IPC 消息                          |                             |
+2. 反序列化成 TransactionData             |                             |
+3. 存入 cachedTransactionDataMap_        |                             |
+4. 调用 RequestNextVSync ----------------+                             |
+       |                                 |                             |
+       |                       (等待 16.6ms...)                        |
+       |                                 |                             |
+       |                                 +---------> 5. 触发 OnVsync 回调
+       |                                 |             |
+       |                                 |             +-> 6. 调用 mainLoop_()
+       |                                 |             |
+       |                                 |             +-> 7. ProcessCommand()
+       |                                 |             |      (消费 cachedTransactionDataMap_)

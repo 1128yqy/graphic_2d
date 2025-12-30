@@ -166,31 +166,39 @@ void RSUniRenderThread::InitGrContext()
     }
     uniRenderEngine_->Init();
     if (auto skContext = uniRenderEngine_->GetSkContext()) {
-        skContext->SetMemoryOverCheckProc([](void*) {
+        skContext->SetMemoryOverCheckProc([skContext](void*) {
+            int resourceCount = 0;
+            size_t resourceBytes = 0;
+            skContext->GetResourceCacheUsage(&resourceCount, &resourceBytes);
+            if (resourceBytes < 3ULL * 1024 * 1024 * 1024) { // 3GB
+                return;
+            }
             static int frameCount = 0;
             frameCount++;
             if (frameCount % 3 != 0) {
                 return;
             }
-            std::unordered_set<std::u16string> argSets;
-            std::string dumpString;
-            std::string type = "";
-            RSMainThread::Instance()->DumpMem(argSets, dumpString, type, 0);
-            RS_LOGD("SkiaFlushDump RSMainThread:\n%{public}s", dumpString.c_str());
-            std::string path = "/data/storage/el2/base/files/gpu_dump_" + std::to_string(frameCount) + ".txt";
-            std::ofstream outFile(path);
-            if (outFile.is_open()) {
-                auto now = std::chrono::system_clock::now();
-                auto time = std::chrono::system_clock::to_time_t(now);
-                outFile << "\n******************************\n";
-                outFile << std::ctime(&time);
-                outFile << "\n";
-                outFile << dumpString;
-                outFile << "\n************ endl ************\n";
-                outFile.close();
-            } else {
-                RS_LOGE("SkiaFlushDump::file open fail!");
-            }
+            RSBackgroundThread::Instance().PostTask([frameCount]() {
+                std::unordered_set<std::u16string> argSets;
+                std::string dumpString;
+                std::string type = "";
+                RSMainThread::Instance()->DumpMem(argSets, dumpString, type, 0);
+                RS_LOGD("SkiaFlushDump RSMainThread:\n%{public}s", dumpString.c_str());
+                std::string path = "/data/storage/el2/base/files/gpu_dump_" + std::to_string(frameCount) + ".txt";
+                std::ofstream outFile(path);
+                if (outFile.is_open()) {
+                    auto now = std::chrono::system_clock::now();
+                    auto time = std::chrono::system_clock::to_time_t(now);
+                    outFile << "\n******************************\n";
+                    outFile << std::ctime(&time);
+                    outFile << "\n";
+                    outFile << dumpString;
+                    outFile << "\n************ endl ************\n";
+                    outFile.close();
+                } else {
+                    RS_LOGE("SkiaFlushDump::file open fail!");
+                }
+            });
         });
     }
 #ifdef RS_ENABLE_VK
